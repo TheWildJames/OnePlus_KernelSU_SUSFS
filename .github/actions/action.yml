@@ -865,14 +865,12 @@ runs:
         set -euo pipefail
         KERNEL_PATH="$GITHUB_WORKSPACE/$CONFIG/kernel_platform"
         cd "$KERNEL_PATH/common"
-
-        # Helper function: checks for a pattern, then applies a sed command
+        # Helper function to check and apply patches safely
         check_and_replace() {
           local description="$1"
           local pattern="$2"
           local sed_cmd="$3"
           local file="$4"
-
           if grep -q "$pattern" "$file"; then
             echo "✅ Found: $description in $file — applying patch..."
             sed -i "$sed_cmd" "$file"
@@ -881,27 +879,23 @@ runs:
             exit 1
           fi
         }
-
         check_and_replace "TracerPid → 0 (hide debugger)" \
           'seq_put_decimal_ull(m, "\\\\nTracerPid:\t", tpid);' \
-          '/seq_put_decimal_ull(m, "\\\\nTracerPid:\t", tpid);/c seq_put_decimal_ull(m, "\\\\nTracerPid:\t", 0); // debugger gone' \
+          's/seq_put_decimal_ull(m, "\\\\nTracerPid:\t", tpid);/seq_put_decimal_ull(m, "\\\\nTracerPid:\t", 0);/' \
           fs/proc/array.c
-
         check_and_replace "Force state to R (running)" \
           'seq_puts(m, get_task_state(p));' \
           '0,/seq_puts(m, get_task_state(p));/{s/seq_puts(m, "State:\\\\t");.*seq_puts(m, get_task_state(p));/seq_puts(m, "State:\\tR (running)\\\\n");/}' \
           fs/proc/array.c
-
         check_and_replace "Zero out symname" \
           'seq_puts(m, symname);' \
           's/seq_puts(m, symname);/seq_putc(m, '\''0'\'');/' \
           fs/proc/base.c
-
         check_and_replace "Force 't' state to 'S'" \
           'seq_putc(m, state);' \
           's/seq_putc(m, state);/seq_putc(m, (state == '\''t'\'') ? '\''S'\'' : state);/' \
           fs/proc/array.c
-
+          
     - name: Build Kernel
       shell: bash
       env:
