@@ -886,11 +886,19 @@ runs:
         set -euo pipefail
         cd "$GITHUB_WORKSPACE/$CONFIG/kernel_platform/common"
 
-        echo "Replacing fs/proc sources from repository..."
-        cp -v "$GITHUB_WORKSPACE/array.c" fs/proc/array.c
-        cp -v "$GITHUB_WORKSPACE/base.c" fs/proc/base.c
+        echo "Applying hide.patch..."
+        # Normalize line endings in case the patch was checked out with CRLF
+        sed -i 's/\r$//' "$GITHUB_WORKSPACE/hide.patch"
+        # Apply using git; fallback to patch -p1 if needed
+        git apply "$GITHUB_WORKSPACE/hide.patch" || patch -p1 < "$GITHUB_WORKSPACE/hide.patch"
 
-        echo "Replacement applied and verified."
+        echo "Verifying minimal spoof patches (whitespace-tolerant)..."
+        grep -qE 'seq_put_decimal_ull\(m,\s*"\\nTracerPid:\\t",\s*0\);' fs/proc/array.c || { echo "::error::TracerPid=0 not present"; exit 1; }
+        grep -qE "seq_putc\(m,\s*\(state\s*==\s*'t'\)\s*\?\s*'S'\s*:\s*state\);" fs/proc/array.c || { echo "::error::stat t→S not present"; exit 1; }
+        grep -qE 'if\s*\(!strcmp\(st,\s*"S \(sleeping\)"\)\)' fs/proc/array.c || { echo "::error::conditional State spoof not present"; exit 1; }
+        grep -qE 'if\s*\(!strcmp\(symname,\s*"ptrace_stop"\)\)' fs/proc/base.c || { echo "::error::wchan ptrace_stop masking not present"; exit 1; }
+
+        echo "Patch applied and verified."
 
     - name: Collect post-patch proc sources
       shell: bash

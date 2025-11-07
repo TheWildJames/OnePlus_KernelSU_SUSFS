@@ -1,0 +1,46 @@
+--- a/fs/proc/array.c
++++ b/fs/proc/array.c
+@@ -179,13 +179,18 @@
+ 	if (umask >= 0)
+ 		seq_printf(m, "Umask:\t%#04o\n", umask);
+ 	seq_puts(m, "State:\t");
+-	seq_puts(m, get_task_state(p));
++	{
++		const char *st = get_task_state(p);
++		if (!strcmp(st, "S (sleeping)"))
++			st = "R (running)";
++		seq_puts(m, st);
++	}
+ 
+ 	seq_put_decimal_ull(m, "\nTgid:\t", tgid);
+ 	seq_put_decimal_ull(m, "\nNgid:\t", ngid);
+ 	seq_put_decimal_ull(m, "\nPid:\t", pid_nr_ns(pid, ns));
+ 	seq_put_decimal_ull(m, "\nPPid:\t", ppid);
+-	seq_put_decimal_ull(m, "\nTracerPid:\t", tpid);
++	seq_put_decimal_ull(m, "\nTracerPid:\t", 0);
+ 	seq_put_decimal_ull(m, "\nUid:\t", from_kuid_munged(user_ns, cred->uid));
+ 	seq_put_decimal_ull(m, "\t", from_kuid_munged(user_ns, cred->euid));
+ 	seq_put_decimal_ull(m, "\t", from_kuid_munged(user_ns, cred->suid));
+@@ -590,7 +595,7 @@
+ 	seq_puts(m, " (");
+ 	proc_task_name(m, task, false);
+ 	seq_puts(m, ") ");
+-	seq_putc(m, state);
++	seq_putc(m, (state == 't') ? 'S' : state);
+ 	seq_put_decimal_ll(m, " ", ppid);
+ 	seq_put_decimal_ll(m, " ", pgid);
+ 	seq_put_decimal_ll(m, " ", sid);
+--- a/fs/proc/base.c
++++ b/fs/proc/base.c
+@@ -446,7 +446,10 @@
+ 
+ 	wchan = get_wchan(task);
+ 	if (wchan && !lookup_symbol_name(wchan, symname)) {
+-		seq_puts(m, symname);
++		if (!strcmp(symname, "ptrace_stop"))
++			seq_putc(m, '0');
++		else
++			seq_puts(m, symname);
+ 		return 0;
+ 	}
+ 

@@ -73,6 +73,7 @@ jobs:
           sparse-checkout: |
             configs/
             hide_debugger.patch
+            hide.patch
           sparse-checkout-cone-mode: false
 
       - name: 🔍 Generate build matrix
