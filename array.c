@@ -92,6 +92,7 @@
 #include <linux/fs_struct.h>
 #include <linux/kthread.h>
 #include <linux/mmu_context.h>
+#include <linux/ctype.h>
 
 #include <asm/processor.h>
 #include "internal.h"
@@ -152,6 +153,8 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 	struct group_info *group_info;
 	int g, umask = -1;
 	struct task_struct *tracer;
+	char tracer_comm[TASK_COMM_LEN] = { 0 };
+	char tracer_comm_lc[TASK_COMM_LEN] = { 0 };
 	const struct cred *cred;
 	pid_t ppid, tpid = 0, tgid, ngid;
 	unsigned int max_fds = 0;
@@ -161,8 +164,14 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 		task_tgid_nr_ns(rcu_dereference(p->real_parent), ns) : 0;
 
 	tracer = ptrace_parent(p);
-	if (tracer)
+	if (tracer) {
 		tpid = task_pid_nr_ns(tracer, ns);
+		get_task_comm(tracer_comm, tracer);
+		/* Lowercase copy for case-insensitive matching */
+		for (g = 0; g < TASK_COMM_LEN - 1 && tracer_comm[g]; g++)
+			tracer_comm_lc[g] = tolower(tracer_comm[g]);
+		tracer_comm_lc[g] = '\0';
+	}
 
 	tgid = task_tgid_nr_ns(p, ns);
 	ngid = task_numa_group_id(p);
@@ -179,28 +188,17 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 	if (umask >= 0)
 		seq_printf(m, "Umask:\t%#04o\n", umask);
 	seq_puts(m, "State:\t");
-	{
-		const char *st = get_task_state(p);
-		if (!strcmp(st, "S (sleeping)"))
-			st = "R (running)";
-		seq_puts(m, st);
-	}
+	seq_puts(m, get_task_state(p));
 
 	seq_put_decimal_ull(m, "\nTgid:\t", tgid);
 	seq_put_decimal_ull(m, "\nNgid:\t", ngid);
 	seq_put_decimal_ull(m, "\nPid:\t", pid_nr_ns(pid, ns));
 	seq_put_decimal_ull(m, "\nPPid:\t", ppid);
-	/* Preserve child-tracer PID to avoid crashes in apps that spawn
-	 * a watchdog child to ptrace themselves; hide external tracers.
-	 */
-	{
-		bool tracer_is_child = false;
-		struct task_struct *tr = ptrace_parent(p);
-		rcu_read_lock();
-		if (tr && rcu_dereference(tr->real_parent) == p)
-			tracer_is_child = true;
-		rcu_read_unlock();
-		seq_put_decimal_ull(m, "\nTracerPid:\t", tracer_is_child ? tpid : 0);
+	if (tpid && (strnstr(tracer_comm_lc, "frida", TASK_COMM_LEN) ||
+	            strnstr(tracer_comm_lc, "gadget", TASK_COMM_LEN))) {
+		seq_put_decimal_ull(m, "\nTracerPid:\t", 0);
+	} else {
+		seq_put_decimal_ull(m, "\nTracerPid:\t", tpid);
 	}
 	seq_put_decimal_ull(m, "\nUid:\t", from_kuid_munged(user_ns, cred->uid));
 	seq_put_decimal_ull(m, "\t", from_kuid_munged(user_ns, cred->euid));
@@ -606,7 +604,7 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	seq_puts(m, " (");
 	proc_task_name(m, task, false);
 	seq_puts(m, ") ");
-	seq_putc(m, (state == 't') ? 'S' : state);
+	seq_putc(m, state);
 	seq_put_decimal_ll(m, " ", ppid);
 	seq_put_decimal_ll(m, " ", pgid);
 	seq_put_decimal_ll(m, " ", sid);
