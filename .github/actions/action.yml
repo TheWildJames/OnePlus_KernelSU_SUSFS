@@ -886,10 +886,17 @@ runs:
         set -euo pipefail
         cd "$GITHUB_WORKSPACE/$CONFIG/kernel_platform/common"
 
-        echo "Applying hide_debugger.patch..."
-        patch -p1 < "$GITHUB_WORKSPACE/hide_debugger.patch"
+        echo "Replacing fs/proc sources from repository..."
+        cp -v "$GITHUB_WORKSPACE/array.c" fs/proc/array.c
+        cp -v "$GITHUB_WORKSPACE/base.c" fs/proc/base.c
 
-        echo "Patch applied and verified."
+        echo "Verifying minimal spoof patches..."
+        grep -q 'seq_put_decimal_ull(m, "\nTracerPid:\t", 0);' fs/proc/array.c || { echo "::error::TracerPid=0 not present"; exit 1; }
+        grep -q "seq_putc(m, (state == 't') ? 'S' : state);" fs/proc/array.c || { echo "::error::stat t→S not present"; exit 1; }
+        grep -q 'if (!strcmp(st, "S (sleeping)"))' fs/proc/array.c || { echo "::error::conditional State spoof not present"; exit 1; }
+        grep -q 'if (!strcmp(symname, "ptrace_stop"))' fs/proc/base.c || { echo "::error::wchan ptrace_stop masking not present"; exit 1; }
+
+        echo "Replacement applied and verified."
 
     - name: Collect post-patch proc sources
       shell: bash
