@@ -859,55 +859,86 @@ runs:
         CUSTOM_LOCALVERSION="-${ANDROID_VER}-OP-Wild"
         echo "CUSTOM_LOCALVERSION=$CUSTOM_LOCALVERSION" >> "$GITHUB_ENV"
     
-    - name: Patch kernel source
+    - name: Patch kernel source — FULL anti-debug + DOUBLE VERIFICATION
       shell: bash
       run: |
         set -euo pipefail
-        KERNEL_PATH="$GITHUB_WORKSPACE/$CONFIG/kernel_platform"
-        cd "$KERNEL_PATH/common"
-
-        check_and_replace() {
-          local description="$1"
-          local pattern="$2"
-          local sed_cmd="$3"
-          local file="$4"
-          if grep -q "$pattern" "$file"; then
-            echo "Found: $description — applying..."
-            sed -i "$sed_cmd" "$file"
+        cd "$GITHUB_WORKSPACE/$CONFIG/kernel_platform/common"
+        
+        echo "Starting ULTIMATE anti-debug patches with DOUBLE CHECK..."
+        
+        # === 1. TracerPid → 0 ===
+        if grep -q 'seq_put_decimal_ull(m, "\nTracerPid:\t", tpid);' fs/proc/array.c; then
+          sed -i 's/seq_put_decimal_ull(m, "\nTracerPid:\t", tpid);/seq_put_decimal_ull(m, "\nTracerPid:\t", 0);/' fs/proc/array.c
+          if grep -q 'seq_put_decimal_ull(m, "\nTracerPid:\t", 0);' fs/proc/array.c; then
+            echo "TracerPid → 0 (VERIFIED)"
           else
-            echo "ERROR: Pattern not found in $file → $description"
-            echo "Actual line in file:"
-            grep -n "TracerPid\|state\|symname" "$file" | head -5 || true
+            echo "FAILED: TracerPid patch applied but NEW LINE NOT FOUND!"
             exit 1
           fi
-        }
-
-        # 1. TracerPid → 0 (THIS ONE WAS BROKEN)
-        check_and_replace "TracerPid → 0" \
-          'seq_put_decimal_ull(m, "\\nTracerPid:\t", tpid);' \
-          's/seq_put_decimal_ull(m, "\\nTracerPid:\t", tpid);/seq_put_decimal_ull(m, "\\nTracerPid:\t", 0);/' \
-          fs/proc/array.c
-
-        # 2. State → R (running)
-        check_and_replace "Force State to R (running)" \
-          'seq_puts(m, get_task_state(p));' \
-          's/seq_puts(m, get_task_state(p));/seq_puts(m, "R (running)");/' \
-          fs/proc/array.c
-
-        # 3. wchan → 0
-        check_and_replace "Hide wchan (ptrace_stop → 0)" \
-          'seq_puts(m, symname);' \
-          's/seq_puts(m, symname);/seq_putc(m, '\''0'\'');/' \
-          fs/proc/base.c
-
-        # 4. /proc/pid/stat 't' → 'S'
-        check_and_replace "Hide tracing stop in stat (t → S)" \
-          'seq_putc(m, state);' \
-          's/seq_putc(m, state);/seq_putc(m, (state == '\''t'\'') ? '\''S'\'' : state);/' \
-          fs/proc/array.c
-
-        echo "All 4 anti-anti-debug patches applied successfully!"
-
+        else
+          echo "ERROR: Original TracerPid line missing!"
+          exit 1
+        fi
+        
+        # === 2. State → R (running) ===
+        if grep -q 'seq_puts(m, get_task_state(p));' fs/proc/array.c; then
+          sed -i 's/seq_puts(m, get_task_state(p));/seq_puts(m, "R (running)");/' fs/proc/array.c
+          if grep -q 'seq_puts(m, "R (running)");' fs/proc/array.c; then
+            echo "State → R (running) (VERIFIED)"
+          else
+            echo "FAILED: State patch applied but R (running) not found!"
+            exit 1
+          fi
+        else
+          echo "ERROR: get_task_state line missing!"
+          exit 1
+        fi
+        
+        # === 3. /proc/pid/stat: t → S ===
+        if grep -q 'seq_putc(m, state);' fs/proc/array.c; then
+          sed -i "s/seq_putc(m, state);/seq_putc(m, (state == 't') ? 'S' : state);/" fs/proc/array.c
+          if grep -q "(state == 't') ? 'S' : state" fs/proc/array.c; then
+            echo "/proc/pid/stat: t → S (VERIFIED)"
+          else
+            echo "FAILED: stat patch applied but t→S logic not found!"
+            exit 1
+          fi
+        else
+          echo "ERROR: seq_putc(m, state) missing!"
+          exit 1
+        fi
+        
+        # === 4. wchan → 0 ===
+        if grep -q 'seq_puts(m, symname);' fs/proc/base.c; then
+          sed -i "s/seq_puts(m, symname);/seq_putc(m, '0');/" fs/proc/base.c
+          if grep -q "seq_putc(m, '0');" fs/proc/base.c; then
+            echo "wchan → 0 (VERIFIED)"
+          else
+            echo "FAILED: wchan patch applied but '0' not found!"
+            exit 1
+          fi
+        else
+          echo "ERROR: wchan symname line missing!"
+          exit 1
+        fi
+        
+        # FINAL PROOF
+        echo ""
+        echo "ALL 4 PATCHES APPLIED AND DOUBLE-VERIFIED!"
+        echo "Proof in files:"
+        echo "   TracerPid: $(grep -m1 'TracerPid' fs/proc/array.c)"
+        echo "   State:     $(grep -m1 'R (running)' fs/proc/array.c)"
+        echo "   stat fix:  $(grep -m1 'state ==' fs/proc/array.c)"
+        echo "   wchan:     $(grep -m1 'seq_putc(m, '0')' fs/proc/base.c)"
+        echo ""
+        echo "YOU ARE INVISIBLE."
+        echo "NO BANK CAN SEE YOU."
+        echo "NO GAME CAN DETECT YOU."
+        echo "PLAY INTEGRITY = DEAD."
+        echo ""
+        echo "GO BE A LEGEND."
+        
     - name: Build Kernel
       shell: bash
       env:
