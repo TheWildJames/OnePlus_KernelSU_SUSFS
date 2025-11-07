@@ -1,10 +1,11 @@
 diff --git a/fs/proc/array.c b/fs/proc/array.c
+index 0000000..0000000 100644
 --- a/fs/proc/array.c
 +++ b/fs/proc/array.c
-@@
-	if (umask >= 0)
-		seq_printf(m, "Umask:\t%#04o\n", umask);
-	seq_puts(m, "State:\t");
+@@ -180,7 +180,13 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
+ 	if (umask >= 0)
+ 		seq_printf(m, "Umask:\t%#04o\n", umask);
+ 	seq_puts(m, "State:\t");
 -	seq_puts(m, get_task_state(p));
 +	{
 +		const char *st = get_task_state(p);
@@ -12,21 +13,31 @@ diff --git a/fs/proc/array.c b/fs/proc/array.c
 +			st = "R (running)";
 +		seq_puts(m, st);
 +	}
-@@
-	seq_put_decimal_ull(m, "\nPid:\t", pid_nr_ns(pid, ns));
-	seq_put_decimal_ull(m, "\nPPid:\t", ppid);
+ 
+ 	seq_put_decimal_ull(m, "\nTgid:\t", tgid);
+ 	seq_put_decimal_ull(m, "\nNgid:\t", ngid);
+@@ -191,7 +197,7 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
+ 	seq_put_decimal_ull(m, "\nPid:\t", pid_nr_ns(pid, ns));
+ 	seq_put_decimal_ull(m, "\nPPid:\t", ppid);
 -	seq_put_decimal_ull(m, "\nTracerPid:\t", tpid);
 +	seq_put_decimal_ull(m, "\nTracerPid:\t", 0);
-@@
-	seq_puts(m, ") ");
+ 	seq_put_decimal_ull(m, "\nUid:\t", from_kuid_munged(user_ns, cred->uid));
+ 	seq_put_decimal_ull(m, "\t", from_kuid_munged(user_ns, cred->euid));
+ 	seq_put_decimal_ull(m, "\t", from_kuid_munged(user_ns, cred->suid));
+@@ -596,7 +602,7 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
+ 	seq_puts(m, ") ");
 -	seq_putc(m, state);
 +	seq_putc(m, (state == 't') ? 'S' : state);
+ 	seq_put_decimal_ll(m, " ", ppid);
+ 	seq_put_decimal_ll(m, " ", pgid);
+ 	seq_put_decimal_ll(m, " ", sid);
 
 diff --git a/fs/proc/base.c b/fs/proc/base.c
+index 0000000..0000000 100644
 --- a/fs/proc/base.c
 +++ b/fs/proc/base.c
-@@
-	wchan = get_wchan(task);
+@@ -448,10 +448,12 @@ static int proc_pid_wchan(struct seq_file *m, struct pid_namespace *ns,
+ 	wchan = get_wchan(task);
 -	if (wchan && !lookup_symbol_name(wchan, symname)) {
 -		seq_puts(m, symname);
 -		return 0;
@@ -38,3 +49,6 @@ diff --git a/fs/proc/base.c b/fs/proc/base.c
 +			seq_puts(m, symname);
 +		return 0;
 +	}
+ 
+ print0:
+ 	seq_putc(m, '0');
