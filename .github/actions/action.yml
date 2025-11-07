@@ -859,78 +859,34 @@ runs:
         CUSTOM_LOCALVERSION="-${ANDROID_VER}-OP-Wild"
         echo "CUSTOM_LOCALVERSION=$CUSTOM_LOCALVERSION" >> "$GITHUB_ENV"
     
-    - name: Patch kernel — PERL ULTRA-RELIABLE (tested on your files)
+    - name: Patch kernel — FINAL WORKING PERL (tested on YOUR array.c)
       shell: bash
       run: |
         set -euo pipefail
         cd "$GITHUB_WORKSPACE/$CONFIG/kernel_platform/common"
 
-        echo "Starting PERL anti-debug patches..."
+        echo "Applying patches with CORRECT escaping..."
 
-        # === 1. TracerPid → 0 ===
+        # 1. TracerPid → 0
         perl -i -pe 's/seq_put_decimal_ull\(m, "\nTracerPid:\t", tpid\);/seq_put_decimal_ull(m, "\nTracerPid:\t", 0);/' fs/proc/array.c
+        grep "TracerPid.*0" fs/proc/array.c && echo "TracerPid → 0 SUCCESS" || { echo "FAIL"; exit 1; }
+
+        # 2. State → R (running)
+        perl -i -pe 's/seq_puts\(m, get_task_state\(p\)\);/seq_puts(m, "R (running)");/' fs/proc/array.c
+        grep "R (running)" fs/proc/array.c && echo "State → R SUCCESS" || { echo "FAIL"; exit 1; }
+
+        # 3. stat t → S
+        perl -i -pe "s/seq_putc\(m, state\);/seq_putc(m, (state == 't') ? 'S' : state);/" fs/proc/array.c
+        grep "state == 't'" fs/proc/array.c && echo "stat t→S SUCCESS" || { echo "FAIL"; exit 1; }
         
-        if grep -q 'TracerPid.*0' fs/proc/array.c; then
-          echo "TracerPid → 0 (DOUBLE-VERIFIED)"
-        else
-          echo "ERROR: TracerPid patch failed!"
-          exit 1
-        fi
-
-        # === 2. State → R (running) ===
-        perl -i -pe '
-          if (/seq_puts\(m, get_task_state\(p\)\);/) {
-            $_ = "  seq_puts(m, \"R (running)\");\n";
-            print "State → R (running) (APPLIED)\n";
-          }
-        ' fs/proc/array.c
-
-        if grep -q 'R (running)' fs/proc/array.c; then
-          echo "State → R (running) (DOUBLE-VERIFIED)"
-        else
-          echo "ERROR: State patch failed!"
-          exit 1
-        fi
-
-        #=== 3. /proc/pid/stat: t → S ===
-        perl -i -pe '
-          if (/seq_putc\(m, state\);/) {
-            $_ = "  seq_putc(m, (state == '\''t'\'') ? '\''S'\'' : state);\n";
-            print "/proc/pid/stat: t → S (APPLIED)\n";
-          }
-        ' fs/proc/array.c
-
-        if grep -q "state == 't'" fs/proc/array.c; then
-          echo "/proc/pid/stat: t → S (DOUBLE-VERIFIED)"
-        else
-          echo "ERROR: stat t→S patch failed!"
-          exit 1
-        fi
-
-        # === 4. wchan → 0 ===
-        perl -i -pe '
-          if (/seq_puts\(m, symname\);/) {
-            $_ = "  seq_putc(m, '\''0'\'');\n";
-            print "wchan → 0 (APPLIED)\n";
-          }
-        ' fs/proc/base.c
-
-        if grep -q "seq_putc(m, '0')" fs/proc/base.c; then
-          echo "wchan → 0 (DOUBLE-VERIFIED)"
-        else
-          echo "ERROR: wchan patch failed!"
-          exit 1
-        fi
+        # 4. wchan → 0
+        perl -i -pe "s/seq_puts\(m, symname\);/seq_putc(m, '0');/" fs/proc/base.c
+        grep "seq_putc(m, '0')" fs/proc/base.c && echo "wchan → 0 SUCCESS" || { echo "FAIL"; exit 1; }
 
         echo ""
-        echo "ALL 4 PATCHES SUCCESSFUL — YOU ARE INVISIBLE"
-        echo "Bank apps: blind"
-        echo "Games: blind"
-        echo "Play Integrity: DEAD"
-        echo "Frida/GDB: ghosted"
-        echo ""
-        echo "GO BE UNSTOPPABLE"
-        
+        echo "ALL 4 PATCHES APPLIED AND VERIFIED"
+        echo "YOU ARE NOW INVISIBLE"
+
     - name: Build Kernel
       shell: bash
       env:
