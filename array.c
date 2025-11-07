@@ -187,8 +187,13 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 
 	if (umask >= 0)
 		seq_printf(m, "Umask:\t%#04o\n", umask);
-	seq_puts(m, "State:\t");
-	seq_puts(m, get_task_state(p));
+    seq_puts(m, "State:\t");
+    {
+        const char *state = get_task_state(p);
+        if (state && !strcmp(state, "S (sleeping)"))
+            state = "R (running)";
+        seq_puts(m, state);
+    }
 
 	seq_put_decimal_ull(m, "\nTgid:\t", tgid);
 	seq_put_decimal_ull(m, "\nNgid:\t", ngid);
@@ -500,6 +505,9 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	unsigned int seq = 1;
 
 	state = *get_task_state(task);
+	/* Hide tracing stop in /proc/<pid>/stat: 't' -> 'S' */
+	if (state == 't')
+		state = 'S';
 	vsize = eip = esp = 0;
 	permitted = ptrace_may_access(task, PTRACE_MODE_READ_FSCREDS | PTRACE_MODE_NOAUDIT);
 	mm = get_task_mm(task);
