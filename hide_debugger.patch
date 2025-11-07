@@ -1,0 +1,40 @@
+diff --git a/fs/proc/array.c b/fs/proc/array.c
+--- a/fs/proc/array.c
++++ b/fs/proc/array.c
+@@
+	if (umask >= 0)
+		seq_printf(m, "Umask:\t%#04o\n", umask);
+	seq_puts(m, "State:\t");
+-	seq_puts(m, get_task_state(p));
++	{
++		const char *st = get_task_state(p);
++		if (!strcmp(st, "S (sleeping)"))
++			st = "R (running)";
++		seq_puts(m, st);
++	}
+@@
+	seq_put_decimal_ull(m, "\nPid:\t", pid_nr_ns(pid, ns));
+	seq_put_decimal_ull(m, "\nPPid:\t", ppid);
+-	seq_put_decimal_ull(m, "\nTracerPid:\t", tpid);
++	seq_put_decimal_ull(m, "\nTracerPid:\t", 0);
+@@
+	seq_puts(m, ") ");
+-	seq_putc(m, state);
++	seq_putc(m, (state == 't') ? 'S' : state);
+
+diff --git a/fs/proc/base.c b/fs/proc/base.c
+--- a/fs/proc/base.c
++++ b/fs/proc/base.c
+@@
+	wchan = get_wchan(task);
+-	if (wchan && !lookup_symbol_name(wchan, symname)) {
+-		seq_puts(m, symname);
+-		return 0;
+-	}
++	if (wchan && !lookup_symbol_name(wchan, symname)) {
++		if (!strcmp(symname, "ptrace_stop"))
++			seq_putc(m, '0');
++		else
++			seq_puts(m, symname);
++		return 0;
++	}
