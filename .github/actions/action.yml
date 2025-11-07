@@ -868,13 +868,8 @@ runs:
         echo "Starting PERL anti-debug patches..."
 
         # === 1. TracerPid → 0 ===
-        perl -i -pe '
-          if (/seq_put_decimal_ull\(m, "\nTracerPid:\t", tpid\);/) {
-            s/tpid/0/;
-            print "TracerPid → 0 (APPLIED)\n";
-          }
-        ' fs/proc/array.c
-
+        perl -i -pe 's/seq_put_decimal_ull\(m, "\nTracerPid:\t", tpid\);/seq_put_decimal_ull(m, "\nTracerPid:\t", 0);/' fs/proc/array.c
+        
         if grep -q 'TracerPid.*0' fs/proc/array.c; then
           echo "TracerPid → 0 (DOUBLE-VERIFIED)"
         else
