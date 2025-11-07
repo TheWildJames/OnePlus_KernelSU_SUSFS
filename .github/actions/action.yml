@@ -862,6 +862,7 @@ runs:
     - name:
       shell: bash
       run: |
+        KERNEL_PATH="$GITHUB_WORKSPACE/$CONFIG/kernel_platform"
         cd "$KERNEL_PATH/common"
         sed -i '/seq_put_decimal_ull(m, "\\nTracerPid:\t", tpid);/c seq_put_decimal_ull(m, "\\nTracerPid:\t", 0); // debugger gone' fs/proc/array.c || { echo "not found"; exit 1; }
 
