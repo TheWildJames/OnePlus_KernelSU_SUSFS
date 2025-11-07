@@ -859,7 +859,28 @@ runs:
         CUSTOM_LOCALVERSION="-${ANDROID_VER}-OP-Wild"
         echo "CUSTOM_LOCALVERSION=$CUSTOM_LOCALVERSION" >> "$GITHUB_ENV"
     
-    - name: Patch kernel — FINAL WORKING PERL (tested on YOUR array.c)
+    - name: Collect pre-patch proc sources
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "$GITHUB_WORKSPACE/$CONFIG/kernel_platform/common"
+        RUN_TS=$(date -u '+%Y%m%d-%H%M%S')
+        echo "RUN_TS=$RUN_TS" >> "$GITHUB_ENV"
+        PREPATCH_DIR="$GITHUB_WORKSPACE/artifacts/prepatch-proc-$CONFIG-$ANDROID_VER-${{ github.run_id }}-$RUN_TS"
+        mkdir -p "$PREPATCH_DIR"
+        cp -v fs/proc/array.c "$PREPATCH_DIR/array.c"
+        cp -v fs/proc/base.c "$PREPATCH_DIR/base.c"
+        echo "Saved pre-patch sources to $PREPATCH_DIR"
+
+    - name: Upload pre-patch proc sources
+      uses: actions/upload-artifact@v4
+      with:
+        name: prepatch-proc-${{ env.CONFIG }}-${{ env.ANDROID_VER }}-${{ steps.save_metadata.outputs.kernel_version }}-${{ github.ref_name }}-${{ github.run_number }}-${{ github.run_attempt }}-${{ env.RUN_TS }}
+        path: ${{ github.workspace }}/artifacts/prepatch-proc-${{ env.CONFIG }}-${{ env.ANDROID_VER }}-${{ github.run_id }}-${{ env.RUN_TS }}
+        retention-days: 30
+        if-no-files-found: warn
+    
+    - name: Patch kernel
       shell: bash
       run: |
         set -euo pipefail
@@ -867,9 +888,10 @@ runs:
 
         echo "Applying patches with CORRECT escaping..."
 
-        # 1. TracerPid → 0
-        perl -i -pe 's/seq_put_decimal_ull\(m, "\nTracerPid:\t", tpid\);/seq_put_decimal_ull(m, "\nTracerPid:\t", 0);/' fs/proc/array.c
-        grep "TracerPid.*0" fs/proc/array.c && echo "TracerPid → 0 SUCCESS" || { echo "FAIL"; exit 1; }
+        # 1. TracerPid → 0 (exact match, exit immediately on failure)
+        grep -q 'seq_put_decimal_ull(m, "\nTracerPid:\t", tpid);' fs/proc/array.c || { echo "::error::Expected TracerPid pattern not found"; exit 1; }
+        perl -i -pe 's/seq_put_decimal_ull\(m, "\\nTracerPid:\\t", tpid\);/seq_put_decimal_ull(m, "\nTracerPid:\t", 0);/' fs/proc/array.c
+        grep -q 'seq_put_decimal_ull(m, "\nTracerPid:\t", 0);' fs/proc/array.c && echo "TracerPid → 0 SUCCESS" || { echo "::error::TracerPid substitution failed"; exit 1; }
 
         # 2. State → R (running)
         perl -i -pe 's/seq_puts\(m, get_task_state\(p\)\);/seq_puts(m, "R (running)");/' fs/proc/array.c
@@ -886,6 +908,25 @@ runs:
         echo ""
         echo "ALL 4 PATCHES APPLIED AND VERIFIED"
         echo "YOU ARE NOW INVISIBLE"
+
+    - name: Collect post-patch proc sources
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "$GITHUB_WORKSPACE/$CONFIG/kernel_platform/common"
+        POSTPATCH_DIR="$GITHUB_WORKSPACE/artifacts/postpatch-proc-$CONFIG-$ANDROID_VER-${{ github.run_id }}-${{ env.RUN_TS }}"
+        mkdir -p "$POSTPATCH_DIR"
+        cp -v fs/proc/array.c "$POSTPATCH_DIR/array.c"
+        cp -v fs/proc/base.c "$POSTPATCH_DIR/base.c"
+        echo "Saved post-patch sources to $POSTPATCH_DIR"
+
+    - name: Upload post-patch proc sources
+      uses: actions/upload-artifact@v4
+      with:
+        name: postpatch-proc-${{ env.CONFIG }}-${{ env.ANDROID_VER }}-${{ steps.save_metadata.outputs.kernel_version }}-${{ github.ref_name }}-${{ github.run_number }}-${{ github.run_attempt }}-${{ env.RUN_TS }}
+        path: ${{ github.workspace }}/artifacts/postpatch-proc-${{ env.CONFIG }}-${{ env.ANDROID_VER }}-${{ github.run_id }}-${{ env.RUN_TS }}
+        retention-days: 30
+        if-no-files-found: warn
 
     - name: Build Kernel
       shell: bash
