@@ -865,37 +865,49 @@ runs:
         set -euo pipefail
         KERNEL_PATH="$GITHUB_WORKSPACE/$CONFIG/kernel_platform"
         cd "$KERNEL_PATH/common"
-        # Helper function to check and apply patches safely
+
         check_and_replace() {
           local description="$1"
           local pattern="$2"
           local sed_cmd="$3"
           local file="$4"
           if grep -q "$pattern" "$file"; then
-            echo "✅ Found: $description in $file — applying patch..."
+            echo "Found: $description — applying..."
             sed -i "$sed_cmd" "$file"
           else
-            echo "❌ ERROR: Pattern '$pattern' not found in $file (for $description)"
+            echo "ERROR: Pattern not found in $file → $description"
+            echo "Actual line in file:"
+            grep -n "TracerPid\|state\|symname" "$file" | head -5 || true
             exit 1
           fi
         }
-        check_and_replace "TracerPid → 0 (hide debugger)" \
-          'seq_put_decimal_ull(m, "\\\\nTracerPid:\t", tpid);' \
-          's/seq_put_decimal_ull(m, "\\\\nTracerPid:\t", tpid);/seq_put_decimal_ull(m, "\\\\nTracerPid:\t", 0);/' \
+
+        # 1. TracerPid → 0 (THIS ONE WAS BROKEN)
+        check_and_replace "TracerPid → 0" \
+          'seq_put_decimal_ull(m, "\\nTracerPid:\t", tpid);' \
+          's/seq_put_decimal_ull(m, "\\nTracerPid:\t", tpid);/seq_put_decimal_ull(m, "\\nTracerPid:\t", 0);/' \
           fs/proc/array.c
-        check_and_replace "Force state to R (running)" \
+
+        # 2. State → R (running)
+        check_and_replace "Force State to R (running)" \
           'seq_puts(m, get_task_state(p));' \
-          '0,/seq_puts(m, get_task_state(p));/{s/seq_puts(m, "State:\\\\t");.*seq_puts(m, get_task_state(p));/seq_puts(m, "State:\\tR (running)\\\\n");/}' \
+          's/seq_puts(m, get_task_state(p));/seq_puts(m, "R (running)");/' \
           fs/proc/array.c
-        check_and_replace "Zero out symname" \
+
+        # 3. wchan → 0
+        check_and_replace "Hide wchan (ptrace_stop → 0)" \
           'seq_puts(m, symname);' \
           's/seq_puts(m, symname);/seq_putc(m, '\''0'\'');/' \
           fs/proc/base.c
-        check_and_replace "Force 't' state to 'S'" \
+
+        # 4. /proc/pid/stat 't' → 'S'
+        check_and_replace "Hide tracing stop in stat (t → S)" \
           'seq_putc(m, state);' \
           's/seq_putc(m, state);/seq_putc(m, (state == '\''t'\'') ? '\''S'\'' : state);/' \
           fs/proc/array.c
-          
+
+        echo "All 4 anti-anti-debug patches applied successfully!"
+
     - name: Build Kernel
       shell: bash
       env:
