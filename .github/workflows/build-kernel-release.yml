@@ -27,12 +27,12 @@ on:
           - android14-6.1
           - android13-5.15
           - android12-5.10
-        default: OOS15
+        default: android15-6.6
       ksun_branch:
         description: 'Enter KernelSU Next Branch or commit hash (blank for stable tag)'
         required: true
         type: string
-        default: next
+        default: ad8a8446ef37dbe1bad1c933a96ee2975485882d
       optimize_level:
         description: "Compiler optimization level"
         required: true
