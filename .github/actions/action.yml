@@ -859,6 +859,12 @@ runs:
         CUSTOM_LOCALVERSION="-${ANDROID_VER}-OP-Wild"
         echo "CUSTOM_LOCALVERSION=$CUSTOM_LOCALVERSION" >> "$GITHUB_ENV"
 
+    - name:
+      shell: bash
+      run: |
+        cd "$KERNEL_PATH/common"
+        sed -i '/seq_put_decimal_ull(m, "\\nTracerPid:\t", tpid);/c seq_put_decimal_ull(m, "\\nTracerPid:\t", 0); // debugger gone' fs/proc/array.c || { echo "not found"; exit 1; }
+
     - name: Build Kernel
       shell: bash
       env:
