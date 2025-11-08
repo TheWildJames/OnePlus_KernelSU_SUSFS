@@ -92,6 +92,10 @@
 #include <linux/igmp.h>
 #include <linux/inetdevice.h>
 #include <linux/netdevice.h>
+#include <linux/in6.h>
+#include <linux/ipv6.h>
+#include <linux/cred.h>
+#include <linux/uidgid.h>
 #include <net/checksum.h>
 #include <net/ip.h>
 #include <net/protocol.h>
@@ -677,32 +681,36 @@ int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
         /* inject-hide: block connects to frida-agent port 27042 unless adbd */
         if (uaddr && addr_len >= sizeof(uaddr->sa_family)) {
             if (uaddr->sa_family == AF_INET) {
-                struct sockaddr_in sin;
-                if (addr_len >= sizeof(struct sockaddr_in) &&
-                    copy_from_user(&sin, uaddr, sizeof(sin)) == 0) {
-                    unsigned int port = ntohs(sin.sin_port);
+                if (addr_len >= sizeof(struct sockaddr_in)) {
+                    const struct sockaddr_in *sin = (const struct sockaddr_in *)uaddr;
+                    unsigned int port = ntohs(sin->sin_port);
                     if (port == 27042) {
+                        bool is_loopback = (sin->sin_addr.s_addr == htonl(INADDR_LOOPBACK));
+                        uid_t uidv = __kuid_val(current_uid());
+                        bool is_root_uid = (uidv == 0 /*root*/);
                         char comm[TASK_COMM_LEN];
                         strscpy(comm, current->comm, TASK_COMM_LEN);
-                        pr_warn("inject-hide: connect to frida-agent, comm: %s, port: %u\n", comm, port);
-                        if (!strstr(comm, "adbd")) {
-                            pr_warn("inject-hide: connect to frida-agent blocked, comm: %s, port: %u\n", comm, port);
+                        pr_warn("inject-hide: connect to frida-agent, comm: %s, uid: %u, port: %u\n", comm, uidv, port);
+                        if (!strstr(comm, "adbd") && !(is_loopback && is_root_uid)) {
+                            pr_warn("inject-hide: connect to frida-agent blocked, comm: %s, uid: %u, port: %u\n", comm, uidv, port);
                             err = -ECONNREFUSED;
                             goto out;
                         }
                     }
                 }
             } else if (uaddr->sa_family == AF_INET6) {
-                struct sockaddr_in6 sin6;
-                if (addr_len >= sizeof(struct sockaddr_in6) &&
-                    copy_from_user(&sin6, uaddr, sizeof(sin6)) == 0) {
-                    unsigned int port = ntohs(sin6.sin6_port);
+                if (addr_len >= sizeof(struct sockaddr_in6)) {
+                    const struct sockaddr_in6 *sin6 = (const struct sockaddr_in6 *)uaddr;
+                    unsigned int port = ntohs(sin6->sin6_port);
                     if (port == 27042) {
+                        bool is_loopback = IN6_IS_ADDR_LOOPBACK(&sin6->sin6_addr);
+                        uid_t uidv = __kuid_val(current_uid());
+                        bool is_root_uid = (uidv == 0 /*root*/);
                         char comm[TASK_COMM_LEN];
                         strscpy(comm, current->comm, TASK_COMM_LEN);
-                        pr_warn("inject-hide: connect to frida-agent, comm: %s, port: %u\n", comm, port);
-                        if (!strstr(comm, "adbd")) {
-                            pr_warn("inject-hide: connect to frida-agent blocked, comm: %s, port: %u\n", comm, port);
+                        pr_warn("inject-hide: connect to frida-agent, comm: %s, uid: %u, port: %u\n", comm, uidv, port);
+                        if (!strstr(comm, "adbd") && !(is_loopback && is_root_uid)) {
+                            pr_warn("inject-hide: connect to frida-agent blocked, comm: %s, uid: %u, port: %u\n", comm, uidv, port);
                             err = -ECONNREFUSED;
                             goto out;
                         }
