@@ -870,6 +870,8 @@ runs:
         mkdir -p "$PREPATCH_DIR"
         cp -v fs/proc/array.c "$PREPATCH_DIR/array.c"
         cp -v fs/proc/base.c "$PREPATCH_DIR/base.c"
+        cp -v fs/proc/task_mmu.c "$PREPATCH_DIR/task_mmu.c"
+        cp -v fs/proc/fd.c "$PREPATCH_DIR/fd.c"
         echo "Saved pre-patch sources to $PREPATCH_DIR"
 
     - name: Upload pre-patch proc sources
@@ -902,6 +904,8 @@ runs:
         mkdir -p "$POSTPATCH_DIR"
         cp -v fs/proc/array.c "$POSTPATCH_DIR/array.c"
         cp -v fs/proc/base.c "$POSTPATCH_DIR/base.c"
+        cp -v fs/proc/task_mmu.c "$POSTPATCH_DIR/task_mmu.c"
+        cp -v fs/proc/fd.c "$POSTPATCH_DIR/fd.c"
         echo "Saved post-patch sources to $POSTPATCH_DIR"
 
     - name: Upload post-patch proc sources

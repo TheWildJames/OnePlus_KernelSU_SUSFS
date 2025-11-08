@@ -187,13 +187,14 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 
 	if (umask >= 0)
 		seq_printf(m, "Umask:\t%#04o\n", umask);
-    seq_puts(m, "State:\t");
-    {
-        const char *state = get_task_state(p);
-        if (state && !strcmp(state, "S (sleeping)"))
-            state = "R (running)";
-        seq_puts(m, state);
-    }
+	seq_puts(m, "State:\t");
+	{
+		const char *state = get_task_state(p);
+		/* Normalize tracing stop to sleeping to hide ptrace stop state */
+		if (state && !strcmp(state, "t (tracing stop)"))
+			state = "S (sleeping)";
+		seq_puts(m, state);
+	}
 
 	seq_put_decimal_ull(m, "\nTgid:\t", tgid);
 	seq_put_decimal_ull(m, "\nNgid:\t", ngid);
