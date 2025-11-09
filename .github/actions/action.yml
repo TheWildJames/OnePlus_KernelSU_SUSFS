@@ -719,17 +719,18 @@ runs:
         else
           echo "Kernel >= $MIN_VERSION, skipping ptrace patch"
         fi
-        if [ "$OP_HMBIRD" = true ]; then
-          echo "Patching hmbird!"
-          echo 'obj-y += hmbird_patch.o' >> ./drivers/Makefile
-          patch -p1 -F 3 < "../../../kernel_patches/oneplus/hmbird/hmbird_kernel_patch.patch"
-          echo "Patching hmbird files!"
-          cd ./kernel/sched
-          rm -rf ext.c ext.h build_policy.c slim.h slim_sysctl.c
-          patch -p1 -F 3 < "../../../../../kernel_patches/oneplus/hmbird/hmbird_files_patch.patch"
-        else
-          echo "Hmbird not enabled, skipping fengchi patch"
-        fi        
+        # HMBIRD patching disabled per request
+        # if [ "$OP_HMBIRD" = true ]; then
+        #   echo "Patching hmbird!"
+        #   echo 'obj-y += hmbird_patch.o' >> ./drivers/Makefile
+        #   patch -p1 -F 3 < "../../../kernel_patches/oneplus/hmbird/hmbird_kernel_patch.patch"
+        #   echo "Patching hmbird files!"
+        #   cd ./kernel/sched
+        #   rm -rf ext.c ext.h build_policy.c slim.h slim_sysctl.c
+        #   patch -p1 -F 3 < "../../../../../kernel_patches/oneplus/hmbird/hmbird_files_patch.patch"
+        # else
+        #   echo "Hmbird not enabled, skipping fengchi patch"
+        # fi        
         echo "✅ SUSFS patches applied"
         echo "::endgroup::"
 
@@ -1225,10 +1226,11 @@ runs:
         cp "$IMAGE_PATH" "$GITHUB_WORKSPACE/AnyKernel3/Image"
         cd "$GITHUB_WORKSPACE/AnyKernel3"
         
-        if [ "$OP_HMBIRD" = true ]; then
-          cp "$GITHUB_WORKSPACE/kernel_patches/oneplus/hmbird/bins/"* ./tools/ 2>/dev/null || true
-          patch -F 3 < "$GITHUB_WORKSPACE/kernel_patches/oneplus/hmbird/ak3_hmbird_patch.patch"
-        fi
+        # HMBIRD AK3 patching disabled per request
+        # if [ "$OP_HMBIRD" = true ]; then
+        #   cp "$GITHUB_WORKSPACE/kernel_patches/oneplus/hmbird/bins/"* ./tools/ 2>/dev/null || true
+        #   patch -F 3 < "$GITHUB_WORKSPACE/kernel_patches/oneplus/hmbird/ak3_hmbird_patch.patch"
+        # fi
         
         ZIP_NAME="AK3_${OP_MODEL}_${OP_OS_VERSION}_${KERNEL_FULL_VER}_Next_${KSUVER}_${SUSVER}.zip"
         ARTIFACTS_DIR="$CONFIG_DIR/artifacts"
