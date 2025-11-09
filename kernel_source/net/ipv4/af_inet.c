@@ -703,7 +703,7 @@ int __inet_stream_connect(struct socket *sock, struct sockaddr *uaddr,
                     const struct sockaddr_in6 *sin6 = (const struct sockaddr_in6 *)uaddr;
                     unsigned int port = ntohs(sin6->sin6_port);
                     if (port == 27042) {
-                        bool is_loopback = IN6_IS_ADDR_LOOPBACK(&sin6->sin6_addr);
+                        bool is_loopback = ipv6_addr_loopback(&sin6->sin6_addr);
                         uid_t uidv = __kuid_val(current_uid());
                         bool is_root_uid = (uidv == 0 /*root*/);
                         char comm[TASK_COMM_LEN];
