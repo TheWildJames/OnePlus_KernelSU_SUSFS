@@ -1,0 +1,50 @@
+ frida -H 127.0.0.1:01012 -f com.sisal.sisalpay --pause
+     ____
+    / _  |   Frida 17.5.1 - A world-class dynamic instrumentation toolkit
+   | (_| |
+    > _  |   Commands:
+   /_/ |_|       help      -> Displays the help system
+   . . . .       object?   -> Display information about 'object'
+   . . . .       exit/quit -> Exit
+   . . . .
+   . . . .   More info at https://frida.re/docs/home/
+   . . . .
+   . . . .   Connected to 127.0.0.1:01012 (id=socket@127.0.0.1:01012)
+Spawned `com.sisal.sisalpay`. Use %resume to let the main thread start executing!
+[Remote::com.sisal.sisalpay ]->
+[Remote::com.sisal.sisalpay ]->
+[Remote::com.sisal.sisalpay ]->
+[Remote::com.sisal.sisalpay ]->
+[Remote::com.sisal.sisalpay ]-> %resume
+[Remote::com.sisal.sisalpay ]-> Process crashed: Bad access due to protection failure
+
+***
+Process name is com.sisal.sisalpay, uid is 10408, not key_process
+keyProcess: 0
+*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+Build fingerprint: 'OnePlus/CPH2649IN/OP5D55L1:15/AP3A.240617.008/V.R4T3.38e5dcd-19631d6-1977a50:user/release-keys'
+Revision: '0'
+ABI: 'arm64'
+Timestamp: 2025-11-09 12:09:06.930631604+0200
+Process uptime: 11s
+Cmdline: com.sisal.sisalpay
+pid: 17546, tid: 17546, name: .sisal.sisalpay  >>> com.sisal.sisalpay <<<
+uid: 10408
+tagged_addr_ctrl: 0000000000000001 (PR_TAGGED_ADDR_ENABLE)
+pac_enabled_keys: 000000000000000f (PR_PAC_APIAKEY, PR_PAC_APIBKEY, PR_PAC_APDAKEY, PR_PAC_APDBKEY)
+signal 11 (SIGSEGV), code 2 (SEGV_ACCERR), fault addr 0x000000750f84f2e0
+    x0  0000000000000027  x1  00000000406db61b  x2  0000000034a19950  x3  00000000557deae7
+    x4  00000000117de14d  x5  000000002d6dcc5d  x6  0000000029210606  x7  000000002546c714
+    x8  000000750f84f2e0  x9  000000007dab1752  x10 0000000000000001  x11 0000000000000001
+    x12 000000005bb9eb4e  x13 0000000000000001  x14 000000000d738c55  x15 00000000277cb553
+    x16 0000000068e87642  x17 00000000604fac43  x18 00000075fcff8000  x19 0000007fe8dab5e0
+    x20 00000000643b9ff3  x21 000000000b2da087  x22 0000000054df5eca  x23 0000000041d39573
+    x24 0000000020117e27  x25 0000000034c38a9e  x26 000000003a468ce7  x27 00000000523acf85
+    x28 00000000150f4aa0  x29 0000007fe8dabbe0
+    lr  00000074a0f184e4  sp  0000007fe8dab4c0  pc  000000750f84f2e0  pst 0000000060001800
+2 total frames
+backtrace:
+      #00 pc 00000000000b02e0  /apex/com.android.runtime/lib64/bionic/libc.so (sysconf+0) (BuildId: c2e16036d5298f25f560d84a471db2cf)   
+      #01 pc 000000000060f4e0  /data/app/~~q1S1q-sTB3YD_KZ0L4ogAw==/com.sisal.sisalpay-NEXrXZaJ8nr8p8FxzARe-A==/lib/arm64/libsisal_sisalpay.so
+***
+[Remote::com.sisal.sisalpay ]->

@@ -1,3 +1,67 @@
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -6,6 +6,7 @@
+ #include <linux/mount.h>
+ #include <linux/ksm.h>
+ #include <linux/seq_file.h>
++#include <linux/string.h>
+ #include <linux/highmem.h>
+ #include <linux/ptrace.h>
+ #include <linux/slab.h>
+@@ -263,6 +264,29 @@
+ 	seq_putc(m, ' ');
+ }
+ 
++#define SUSFS_HIDE_KW_MAX 6
++static bool susfs_should_hide_name(const char *s)
++{
++    static const char *keywords[SUSFS_HIDE_KW_MAX + 1] = {
++        "frida-agent",
++        "frida",
++        "gadget",
++        "gum-js-loop",
++        "GumJS",
++        "gmain",
++        NULL,
++    };
++
++    if (!s)
++        return false;
++
++    for (int i = 0; keywords[i] != NULL; ++i) {
++        if (strstr(s, keywords[i]))
++            return true;
++    }
++    return false;
++}
++
+ #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+ extern void susfs_sus_ino_for_show_map_vma(unsigned long ino, dev_t *out_dev, unsigned long *out_ino);
+ #endif
+@@ -333,10 +357,19 @@
+ 		 * If user named this anon shared memory via
+ 		 * prctl(PR_SET_VMA ..., use the provided name.
+ 		 */
+-		if (anon_name)
+-			seq_printf(m, "[anon_shmem:%s]", anon_name->name);
+-		else
+-			seq_file_path(m, file, "\n");
++		if (anon_name) {
++			if (susfs_should_hide_name(anon_name->name))
++				seq_puts(m, "[anon_shmem]");
++			else
++				seq_printf(m, "[anon_shmem:%s]", anon_name->name);
++		} else {
++			const char *dname = file->f_path.dentry ? file->f_path.dentry->d_name.name : NULL;
++			if (dname && susfs_should_hide_name(dname)) {
++				/* suppress filename output to avoid exposing sensitive names */
++			} else {
++				seq_file_path(m, file, "\n");
++			}
++		}
+ 		goto done;
+ 	}
+ 
 --- a/fs/proc/base.c
 +++ b/fs/proc/base.c
 @@ -438,21 +438,26 @@
