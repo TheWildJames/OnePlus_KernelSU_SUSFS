@@ -6,7 +6,6 @@
 #include <linux/mount.h>
 #include <linux/ksm.h>
 #include <linux/seq_file.h>
-#include <linux/string.h>
 #include <linux/highmem.h>
 #include <linux/ptrace.h>
 #include <linux/slab.h>
@@ -27,6 +26,25 @@
 #if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP)
 #include <linux/susfs_def.h>
 #endif
+
+#include <linux/string.h> // for strstr
+
+// SUSFS extension: Keyword matcher for additional hiding
+#define SUSFS_HIDE_KW_MAX 12
+static const char *susfs_hide_keywords[SUSFS_HIDE_KW_MAX] = {
+    "frida-agent", "frida-server", "gadget", "jit-cache",
+    "gum-js-loop", "GumJS", "gmain", "/data/local/tmp",
+    "frida", "gum-js", "linjector", "gdbus"
+};
+
+static int susfs_should_hide_name(const char *name) {
+    int i;
+    if (!name) return 0;
+    for (i = 0; i < SUSFS_HIDE_KW_MAX; i++) {
+        if (strstr(name, susfs_hide_keywords[i])) return 1;
+    }
+    return 0;
+}
 
 #include <asm/elf.h>
 #include <asm/tlb.h>
@@ -264,29 +282,6 @@ static void show_vma_header_prefix(struct seq_file *m,
 	seq_putc(m, ' ');
 }
 
-#define SUSFS_HIDE_KW_MAX 6
-static bool susfs_should_hide_name(const char *s)
-{
-    static const char *keywords[SUSFS_HIDE_KW_MAX + 1] = {
-        "frida-agent",
-        "frida",
-        "gadget",
-        "gum-js-loop",
-        "GumJS",
-        "gmain",
-        NULL,
-    };
-
-    if (!s)
-        return false;
-
-    for (int i = 0; keywords[i] != NULL; ++i) {
-        if (strstr(s, keywords[i]))
-            return true;
-    }
-    return false;
-}
-
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 extern void susfs_sus_ino_for_show_map_vma(unsigned long ino, dev_t *out_dev, unsigned long *out_ino);
 #endif
@@ -324,6 +319,26 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 			goto done;
 		}
 #endif
+		// Layered SUSFS extension: Additional keyword-based hiding, gated by policy
+		if (susfs_is_current_proc_umounted() && file && file->f_path.dentry) {
+			const char *dname = file->f_path.dentry->d_name.name;
+			if (susfs_should_hide_name(dname)) {
+				seq_setwidth(m, 25 + sizeof(void *) * 6 - 1);
+				seq_put_hex_ll(m, NULL, vma->vm_start, 8);
+				seq_put_hex_ll(m, "-", vma->vm_end, 8);
+				seq_putc(m, ' ');
+				seq_putc(m, '-');
+				seq_putc(m, '-');
+				seq_putc(m, '-');
+				seq_putc(m, 'p');
+				seq_put_hex_ll(m, " ", pgoff, 8);
+				seq_put_hex_ll(m, " ", MAJOR(dev), 2);
+				seq_put_hex_ll(m, ":", MINOR(dev), 2);
+				seq_put_decimal_ull(m, " ", ino);
+				seq_putc(m, ' ');
+				goto done;
+			}
+		}
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
 		if (unlikely(inode->i_mapping->flags & BIT_SUS_KSTAT)) {
 			susfs_sus_ino_for_show_map_vma(inode->i_ino, &dev, &ino);
@@ -357,26 +372,33 @@ bypass_orig_flow:
 		 * If user named this anon shared memory via
 		 * prctl(PR_SET_VMA ..., use the provided name.
 		 */
-		if (anon_name) {
-			if (susfs_should_hide_name(anon_name->name))
-				seq_puts(m, "[anon_shmem]");
-			else
-				seq_printf(m, "[anon_shmem:%s]", anon_name->name);
-		} else {
-			const char *dname = file->f_path.dentry ? file->f_path.dentry->d_name.name : NULL;
-			if (dname && susfs_should_hide_name(dname)) {
-				/* suppress filename output to avoid exposing sensitive names */
-			} else {
-				seq_file_path(m, file, "\n");
-			}
-		}
+		if (anon_name)
+			seq_printf(m, "[anon_shmem:%s]", anon_name->name);
+		else
+			seq_file_path(m, file, "\n");
 		goto done;
+	}
+
+	// Layered SUSFS extension: Suppress suspicious anon labels if gated
+	if (susfs_is_current_proc_umounted()) {
+		if (anon_name && susfs_should_hide_name(anon_name->name)) {
+			seq_pad(m, ' ');
+			seq_puts(m, "[anon]");
+			goto done;
+		}
 	}
 
 	if (vma->vm_ops && vma->vm_ops->name) {
 		name = vma->vm_ops->name(vma);
-		if (name)
+		if (name) {
+			// Layered SUSFS extension: Suppress suspicious vm_ops labels if gated
+			if (susfs_is_current_proc_umounted() && susfs_should_hide_name(name)) {
+				seq_pad(m, ' ');
+				seq_puts(m, "[vmops]");
+				goto done;
+			}
 			goto done;
+		}
 	}
 
 	name = arch_vma_name(vma);
