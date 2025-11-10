@@ -38,11 +38,36 @@ static const char *susfs_hide_keywords[SUSFS_HIDE_KW_MAX] = {
 };
 
 static int susfs_should_hide_name(const char *name) {
-    int i;
-    if (!name) return 0;
-    for (i = 0; i < SUSFS_HIDE_KW_MAX; i++) {
-        if (strstr(name, susfs_hide_keywords[i])) return 1;
+     int i;
+     if (!name) return 0;
+     for (i = 0; i < SUSFS_HIDE_KW_MAX; i++) {
+         if (strstr(name, susfs_hide_keywords[i])) return 1;
+     }
+     return 0;
+ }
+
+static int susfs_should_hide_vma(struct vm_area_struct *vma) {
+    struct mm_struct *mm = vma->vm_mm;
+    struct file *file = vma->vm_file;
+    struct anon_vma_name *anon_name = NULL;
+    const char *name = NULL;
+
+    if (file && file->f_path.dentry) {
+        const char *dname = file->f_path.dentry->d_name.name;
+        if (susfs_should_hide_name(dname)) return 1;
     }
+
+    if (mm) anon_name = anon_vma_name(vma);
+    if (anon_name && susfs_should_hide_name(anon_name->name)) return 1;
+
+    if (vma->vm_ops && vma->vm_ops->name) {
+        name = vma->vm_ops->name(vma);
+        if (name && susfs_should_hide_name(name)) return 1;
+    }
+
+    name = arch_vma_name(vma);
+    if (name && susfs_should_hide_name(name)) return 1;
+
     return 0;
 }
 
@@ -1073,6 +1098,11 @@ static int show_smaps_rollup(struct seq_file *m, void *v)
 			goto bypass_orig_flow;
 		}
 #endif
+		// Layered SUSFS extension: Keyword-based hiding for smaps_rollup consistency
+		if (susfs_is_current_proc_umounted() && susfs_should_hide_vma(vma)) {
+			memset(&mss, 0, sizeof(mss));
+			goto bypass_orig_flow;
+		}
 
 		smap_gather_stats(vma, &mss, 0);
 #ifdef CONFIG_KSU_SUSFS_SUS_MAP
